@@ -173,34 +173,11 @@ public class MasmorraPadrao {
 
     /** Gera fases maiores mantendo uma espinha conectada e corredores extras para exploração. */
     public static DadosMasmorra criarMasmorraProcedural(int quantidade, long semente) {
-        quantidade = Math.max(13, Math.min(48, quantidade));
-        Grafo grafo = new Grafo();
-        Map<Integer, Sala> salas = new LinkedHashMap<>();
-        Random random = new Random(semente);
-        TipoSala[] tipos = {TipoSala.COMUM, TipoSala.COMUM, TipoSala.COMUM, TipoSala.TESOURO, TipoSala.ESPECIAL};
-        String[] nomes = {"Cripta", "Bosque", "Galeria", "Santuário", "Abismo", "Fortaleza", "Câmara", "Passagem"};
-        for (int id = 1; id <= quantidade; id++) {
-            int coluna = (id - 1) % 8;
-            int linha = (id - 1) / 8;
-            int visualColuna = linha % 2 == 0 ? coluna : 7 - coluna;
-            int x = 65 + visualColuna * 90;
-            int y = 75 + linha * 90;
-            TipoSala tipo = id == 1 ? TipoSala.INICIAL : id == quantidade ? TipoSala.SAIDA : tipos[random.nextInt(tipos.length)];
-            String nome = id == 1 ? "Entrada da Fase" : id == quantidade ? "Portal da Fase" : nomes[random.nextInt(nomes.length)] + " " + id;
-            int ouro = tipo == TipoSala.TESOURO ? 70 + random.nextInt(151) : 0;
-            Sala sala = new Sala(id, nome, "Um recinto antigo do mapa procedural, ligado aos corredores reais do grafo.", tipo, x, y, ouro);
-            salas.put(id, sala);
-            grafo.adicionarVertice(sala);
-        }
-        // O caminho consecutivo garante sempre uma rota válida entre entrada e portal.
-        for (int id = 1; id < quantidade; id++) grafo.adicionarAresta(salas.get(id), salas.get(id + 1), 1 + random.nextInt(5));
-        int extras = quantidade + quantidade / 2;
-        for (int i = 0; i < extras; i++) {
-            int a = 1 + random.nextInt(quantidade);
-            int b = 1 + random.nextInt(quantidade);
-            if (a != b && !grafo.saoVizinhos(salas.get(a), salas.get(b)))
-                grafo.adicionarAresta(salas.get(a), salas.get(b), 1 + random.nextInt(7));
-        }
-        return new DadosMasmorra(grafo, salas.get(1), salas.get(quantidade), salas);
+        return criarMasmorraProcedural(2, quantidade, semente);
+    }
+
+    /** Gera fases com dificuldade progressiva, biomas temáticos e garantia matemática de conectividade. */
+    public static DadosMasmorra criarMasmorraProcedural(int fase, int quantidade, long semente) {
+        return GeradorMasmorraProcedural.gerar(fase, quantidade, semente);
     }
 }

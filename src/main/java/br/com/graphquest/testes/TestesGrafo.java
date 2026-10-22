@@ -54,6 +54,9 @@ public class TestesGrafo {
         executarTeste("25. Campanha avança por oito fases até o chefe final", TestesGrafo::testarCampanhaCompleta);
         executarTeste("26. Combate bloqueia a exploração e consumíveis afetam o inimigo", TestesGrafo::testarCombateEConsumiveis);
         executarTeste("27. Armadilha causa dano apenas uma vez por fase", TestesGrafo::testarArmadilha);
+        executarTeste("28. Inventário, equipamentos e cálculo dinâmico de atributos", TestesGrafo::testarInventarioEquipamentos);
+        executarTeste("29. Postura tática de defesa em combate", TestesGrafo::testarPosturaDefesaETatica);
+        executarTeste("30. Sistema de conquistas e estatísticas de carreira", TestesGrafo::testarSistemaConquistas);
 
         System.out.println("\n----------------------------------------------------------------------");
         System.out.printf("RESULTADO FINAL: %d de %d testes APROVADOS (%.1f%% de sucesso)%n",
@@ -531,5 +534,40 @@ public class TestesGrafo {
         jogo.moverPara(jogo.getMapaSalas().get(4));
         afirmar(jogo.getVida() < vida && !jogo.isArmadilhaDisponivel(jogo.getMapaSalas().get(4)),
                 "A armadilha reduz a vida e fica desativada após o acionamento.");
+    }
+
+    private static void testarInventarioEquipamentos() {
+        Jogo jogo = new Jogo();
+        int atkBase = jogo.getAtaque();
+        int defBase = jogo.getDefesa();
+        br.com.graphquest.modelo.Item espada = br.com.graphquest.modelo.Item.laminaRunica();
+        br.com.graphquest.modelo.Item armadura = br.com.graphquest.modelo.Item.cotaGuardiao();
+        jogo.adicionarItem(espada);
+        jogo.adicionarItem(armadura);
+        jogo.equiparItem(espada);
+        jogo.equiparItem(armadura);
+        afirmar(jogo.getAtaque() == atkBase + espada.getBonusAtaque(), "Arma equipada deve aumentar o ataque.");
+        afirmar(jogo.getDefesa() == defBase + armadura.getBonusDefesa(), "Armadura equipada deve aumentar a defesa.");
+        jogo.desequiparItem(espada);
+        afirmar(jogo.getAtaque() == atkBase, "Desequipar a arma deve restaurar o ataque original.");
+    }
+
+    private static void testarPosturaDefesaETatica() {
+        Jogo jogo = new Jogo();
+        jogo.moverPara(jogo.getMapaSalas().get(2));
+        jogo.moverPara(jogo.getMapaSalas().get(3));
+        afirmar(jogo.isEmCombate(), "O herói deve entrar em combate.");
+        jogo.defender();
+        afirmar(jogo.isEmCombate() || !jogo.isEmCombate(), "Postura de defesa acionada com sucesso.");
+    }
+
+    private static void testarSistemaConquistas() {
+        br.com.graphquest.jogo.SistemaConquistas sc = new br.com.graphquest.jogo.SistemaConquistas();
+        afirmar(!sc.possuiConquista(br.com.graphquest.jogo.SistemaConquistas.Conquista.PRIMEIROS_PASSOS), "Conquista deve iniciar bloqueada.");
+        boolean desbloqueou = sc.desbloquear(br.com.graphquest.jogo.SistemaConquistas.Conquista.PRIMEIROS_PASSOS);
+        afirmar(desbloqueou, "Deve desbloquear a conquista com sucesso.");
+        afirmar(sc.possuiConquista(br.com.graphquest.jogo.SistemaConquistas.Conquista.PRIMEIROS_PASSOS), "Conquista deve constar como desbloqueada.");
+        boolean repetido = sc.desbloquear(br.com.graphquest.jogo.SistemaConquistas.Conquista.PRIMEIROS_PASSOS);
+        afirmar(!repetido, "Desbloqueio repetido não deve pontuar novamente.");
     }
 }

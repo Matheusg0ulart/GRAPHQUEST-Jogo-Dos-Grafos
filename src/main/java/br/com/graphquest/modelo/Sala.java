@@ -28,6 +28,7 @@ public class Sala {
     private final String itemNecessario;   // Chave necessária para desbloquear, se houver
     private final String itemConcedido;    // Item entregue ao entrar na sala (ex: Chave Mística)
     private boolean visitada;
+    private EventoExploracao evento;
 
     /**
      * Construtor completo para inicialização de uma sala na masmorra.
@@ -163,6 +164,22 @@ public class Sala {
         return false;
     }
 
+    public EventoExploracao getEvento() {
+        return evento;
+    }
+
+    public void setEvento(EventoExploracao evento) {
+        this.evento = evento;
+    }
+
+    public boolean temEvento() {
+        return evento != null && !evento.isResolvido();
+    }
+
+    public boolean isEventoProcessado() {
+        return evento != null && evento.isResolvido();
+    }
+
     /**
      * Restaura o estado da sala para as condições iniciais do jogo.
      */
@@ -171,6 +188,9 @@ public class Sala {
         this.tesouroColetado = false;
         this.bloqueada = bloqueadaInicialmente;
         this.tipo = tipoOriginal;
+        if (this.evento != null) {
+            this.evento.setResolvido(false);
+        }
     }
 
     @Override

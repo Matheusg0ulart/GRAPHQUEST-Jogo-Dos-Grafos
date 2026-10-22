@@ -521,6 +521,31 @@ public class PainelMapa extends JPanel {
                 g2.fillOval(cx - 3, cy - 3, 6, 6);
                 break;
 
+            case MERCADOR:
+                // Símbolo do Mercador (moeda mística)
+                g2.setColor(new Color(251, 191, 36));
+                g2.fillOval(cx - 7, cy - 7, 14, 14);
+                g2.setColor(new Color(146, 64, 14));
+                g2.drawOval(cx - 7, cy - 7, 14, 14);
+                g2.setColor(new Color(25, 20, 10));
+                g2.setFont(new Font(Font.SERIF, Font.BOLD, 10));
+                g2.drawString("✦", cx - 4, cy + 4);
+                break;
+
+            case DESCANSO:
+                // Cruz esmeralda de recuperação vital
+                g2.setColor(new Color(52, 211, 153));
+                g2.fillRect(cx - 2, cy - 7, 4, 14);
+                g2.fillRect(cx - 7, cy - 2, 14, 4);
+                break;
+
+            case CHEFE:
+                // Emblema do Guardião Chefe
+                g2.setColor(new Color(251, 113, 133));
+                g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+                g2.drawString("☠", cx - 5, cy + 4);
+                break;
+
             case COMUM:
             default:
                 // Número do Vértice em negrito
@@ -677,6 +702,9 @@ public class PainelMapa extends JPanel {
         }
         if (sala.temTesouro()) {
             sb.append("<span style='color:#F59E0B;'><b>Tesouro:</b> +").append(sala.getValorTesouro()).append(" pts</span><br>");
+        }
+        if (sala.getEvento() != null && !sala.isEventoProcessado()) {
+            sb.append("<span style='color:#34D399;'><b>Evento:</b> ").append(sala.getEvento().getNome()).append("</span><br>");
         }
         if (sala.getItemConcedido() != null) {
             sb.append("<span style='color:#A855F7;'><b>Item:</b> ").append(sala.getItemConcedido()).append("</span><br>");

@@ -35,10 +35,14 @@ public class PainelInformacoes extends JPanel implements JogoListener {
     private JLabel lblFase;
     private JProgressBar barraVida;
     private JLabel lblRecursos;
+    private JLabel lblAtributosHeroi;
     private JLabel lblCombate;
     private JButton btnAtacar;
+    private JButton btnDefender;
+    private JButton btnHabilidade;
     private JButton btnPocao;
     private JButton btnBomba;
+    private JButton btnFugir;
     private JPanel painelMissoes;
 
     private JLabel lblNomeSala;
@@ -76,6 +80,8 @@ public class PainelInformacoes extends JPanel implements JogoListener {
         conteudo.add(Box.createVerticalStrut(12));
         conteudo.add(criarCardCombate());
         conteudo.add(Box.createVerticalStrut(12));
+        conteudo.add(criarCardMochilaELoja());
+        conteudo.add(Box.createVerticalStrut(12));
 
         conteudo.add(criarCardMissoes());
         conteudo.add(Box.createVerticalStrut(12));
@@ -112,7 +118,7 @@ public class PainelInformacoes extends JPanel implements JogoListener {
     }
 
     private JPanel criarCardStatus() {
-        JPanel card = new JPanel(new GridLayout(8, 1, 4, 4));
+        JPanel card = new JPanel(new GridLayout(9, 1, 4, 4));
         card.setBackground(TemaVisual.COR_SUPERFICIE_CARD);
         card.setBorder(TemaVisual.criarBordaCard());
 
@@ -127,6 +133,10 @@ public class PainelInformacoes extends JPanel implements JogoListener {
         lblInventario = new JLabel("Inventário: Vazio");
         lblInventario.setFont(TemaVisual.FONTE_PEQUENA);
         lblInventario.setForeground(TemaVisual.COR_TEXTO_CINZA);
+
+        lblAtributosHeroi = new JLabel("⚔ Atk: " + jogo.getAtaque() + "   🛡 Def: " + jogo.getDefesa() + "   ✦ Moedas: " + jogo.getMoedas());
+        lblAtributosHeroi.setFont(TemaVisual.FONTE_PEQUENA);
+        lblAtributosHeroi.setForeground(TemaVisual.COR_DOURADO_CLARO);
 
         lblProgresso = new JLabel("Exploração: 1/13 salas • 3 tesouros restantes");
         lblProgresso.setFont(TemaVisual.FONTE_PEQUENA);
@@ -153,6 +163,7 @@ public class PainelInformacoes extends JPanel implements JogoListener {
 
         card.add(lblPontuacao);
         card.add(lblMovimentos);
+        card.add(lblAtributosHeroi);
         card.add(lblInventario);
         card.add(lblProgresso);
         card.add(lblObjetivo);
@@ -168,25 +179,90 @@ public class PainelInformacoes extends JPanel implements JogoListener {
         card.setBackground(new Color(48, 31, 38));
         card.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(new Color(133, 65, 62)),
                 BorderFactory.createEmptyBorder(10, 10, 10, 10)));
-        JLabel titulo = new JLabel("⚔ COMBATE");
+        JLabel titulo = new JLabel("⚔ COMBATE TÁTICO");
         titulo.setFont(TemaVisual.FONTE_NEGRITO);
         titulo.setForeground(new Color(255, 190, 145));
         lblCombate = new JLabel("Sem inimigos por perto.");
         lblCombate.setFont(TemaVisual.FONTE_PEQUENA);
         lblCombate.setForeground(TemaVisual.COR_TEXTO_BRANCO);
         lblRecursos.setAlignmentX(Component.LEFT_ALIGNMENT);
-        btnAtacar = TemaVisual.criarBotao("Atacar 28", new Color(135, 48, 44), new Color(175, 62, 53));
+
+        btnAtacar = TemaVisual.criarBotao("Atacar " + jogo.getAtaque(), new Color(135, 48, 44), new Color(175, 62, 53));
+        btnDefender = TemaVisual.criarBotao("Defender 🛡", new Color(40, 70, 110), new Color(55, 95, 145));
+        btnHabilidade = TemaVisual.criarBotao("Habilidade ✨", new Color(110, 60, 130), new Color(140, 75, 165));
+
         btnPocao = TemaVisual.criarBotao("Poção +40", new Color(32, 112, 75), new Color(45, 145, 94));
         btnBomba = TemaVisual.criarBotao("Bomba 50", new Color(101, 70, 143), new Color(126, 88, 173));
-        JPanel acoes = new JPanel(new GridLayout(1, 3, 5, 0));
-        acoes.setOpaque(false);
-        acoes.add(btnAtacar); acoes.add(btnPocao); acoes.add(btnBomba);
+        btnFugir = TemaVisual.criarBotao("Fugir 🏃", new Color(90, 70, 30), new Color(120, 95, 40));
+
+        JPanel linha1 = new JPanel(new GridLayout(1, 3, 4, 0));
+        linha1.setOpaque(false);
+        linha1.add(btnAtacar); linha1.add(btnDefender); linha1.add(btnHabilidade);
+
+        JPanel linha2 = new JPanel(new GridLayout(1, 3, 4, 0));
+        linha2.setOpaque(false);
+        linha2.add(btnPocao); linha2.add(btnBomba); linha2.add(btnFugir);
+
         btnAtacar.addActionListener(e -> jogo.atacar());
+        btnDefender.addActionListener(e -> jogo.defender());
+        btnHabilidade.addActionListener(e -> exibirMenuHabilidades(btnHabilidade));
         btnPocao.addActionListener(e -> jogo.usarPocao());
         btnBomba.addActionListener(e -> jogo.usarBomba());
+        btnFugir.addActionListener(e -> jogo.fugir());
+
         card.add(titulo); card.add(Box.createVerticalStrut(7)); card.add(lblCombate);
-        card.add(Box.createVerticalStrut(6)); card.add(lblRecursos); card.add(Box.createVerticalStrut(8)); card.add(acoes);
+        card.add(Box.createVerticalStrut(6)); card.add(lblRecursos); card.add(Box.createVerticalStrut(8));
+        card.add(linha1); card.add(Box.createVerticalStrut(4)); card.add(linha2);
         return card;
+    }
+
+    private JPanel criarCardMochilaELoja() {
+        JPanel card = new JPanel(new GridLayout(1, 3, 6, 6));
+        card.setBackground(TemaVisual.COR_SUPERFICIE_CARD);
+        card.setBorder(TemaVisual.criarBordaCard());
+
+        JButton btnMochila = TemaVisual.criarBotao("🎒 Mochila", new Color(40, 52, 70), new Color(55, 72, 95));
+        btnMochila.setFont(TemaVisual.FONTE_PEQUENA);
+        btnMochila.addActionListener(e -> new DialogoInventario(SwingUtilities.getWindowAncestor(this), jogo).setVisible(true));
+
+        JButton btnLoja = TemaVisual.criarBotao("🪙 Bazar", new Color(94, 61, 27), new Color(130, 88, 35));
+        btnLoja.setFont(TemaVisual.FONTE_PEQUENA);
+        btnLoja.addActionListener(e -> new DialogoLoja(SwingUtilities.getWindowAncestor(this), jogo).setVisible(true));
+
+        JButton btnConquistas = TemaVisual.criarBotao("🏆 Conquistas", new Color(30, 64, 110), new Color(40, 85, 145));
+        btnConquistas.setFont(TemaVisual.FONTE_PEQUENA);
+        btnConquistas.addActionListener(e -> new DialogoConquistas(SwingUtilities.getWindowAncestor(this)).setVisible(true));
+
+        card.add(btnMochila);
+        card.add(btnLoja);
+        card.add(btnConquistas);
+        return card;
+    }
+
+    private void exibirMenuHabilidades(Component comp) {
+        var habilidades = jogo.getHabilidadesDesbloqueadas();
+        if (habilidades.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "Você ainda não aprendeu habilidades arcanas.\nVisite o Bazar do Mercador para desbloquear novos poderes!",
+                    "Habilidades Arcanas", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        JPopupMenu menu = new JPopupMenu();
+        menu.setBackground(TemaVisual.COR_SUPERFICIE);
+        for (br.com.graphquest.jogo.Habilidade hab : habilidades) {
+            boolean disponivel = jogo.podeUsarHabilidade(hab);
+            int recarga = jogo.getRecargaRestanteHabilidade(hab);
+            String texto = hab.getNome() + (disponivel ? " (Pronta)" : " (Recarga: " + recarga + "t)");
+            JMenuItem item = new JMenuItem(texto);
+            item.setFont(TemaVisual.FONTE_PEQUENA);
+            item.setBackground(TemaVisual.COR_SUPERFICIE_CARD);
+            item.setForeground(disponivel ? TemaVisual.COR_DOURADO_CLARO : TemaVisual.COR_TEXTO_MUTED);
+            item.setEnabled(disponivel);
+            item.addActionListener(e -> jogo.usarHabilidade(hab));
+            menu.add(item);
+        }
+        menu.show(comp, 0, comp.getHeight());
     }
 
     private JPanel criarCardMissoes() {
@@ -463,13 +539,20 @@ public class PainelInformacoes extends JPanel implements JogoListener {
         barraVida.setString("Vida " + jogo.getVida() + "/" + jogo.getVidaMaxima());
         barraVida.setForeground(jogo.getVida() <= 30 ? new Color(202, 65, 58) : new Color(48, 170, 112));
         lblRecursos.setText("⚗ " + jogo.getPocoes() + " poções   ✹ " + jogo.getBombas() + " bombas   ↶ " + jogo.getRecuosRestantes() + " recuos");
+        lblAtributosHeroi.setText("⚔ Atk: " + jogo.getAtaque() + "   🛡 Def: " + jogo.getDefesa()
+                + (jogo.isDefendendo() ? " [DEFENDENDO]" : "") + "   ✦ " + jogo.getMoedas() + " ✦");
         var inimigo = jogo.getInimigoAtual();
         lblCombate.setText(inimigo == null ? "Sem inimigos por perto. Explore a próxima câmara." :
                 "<html><b>" + (inimigo.isChefe() ? "BOSS" : "INIMIGO") + "</b> • " + inimigo.getNome()
-                        + "<br>Vida: " + inimigo.getVida() + "/" + inimigo.getVidaMaxima() + " PV</html>");
+                        + "<br>Vida: " + inimigo.getVida() + "/" + inimigo.getVidaMaxima() + " PV"
+                        + " • Defesa: " + inimigo.getDefesa() + "</html>");
+        btnAtacar.setText("Atacar " + jogo.getAtaque());
         btnAtacar.setEnabled(inimigo != null);
+        btnDefender.setEnabled(inimigo != null && !jogo.isDefendendo());
+        btnHabilidade.setEnabled(inimigo != null && !jogo.getHabilidadesDesbloqueadas().isEmpty());
         btnPocao.setEnabled(jogo.getPocoes() > 0 && jogo.getVida() < jogo.getVidaMaxima());
         btnBomba.setEnabled(inimigo != null && jogo.getBombas() > 0);
+        btnFugir.setEnabled(inimigo != null && !inimigo.isChefe());
         atualizarMissoes();
 
         // 2. Sala Atual

@@ -1,8 +1,12 @@
 package br.com.graphquest.jogo;
 
+import br.com.graphquest.audio.GerenciadorAudio;
+import br.com.graphquest.audio.GerenciadorAudio.EfeitoSonoro;
 import br.com.graphquest.grafo.Grafo;
 import br.com.graphquest.grafo.ResultadoBFS;
 import br.com.graphquest.grafo.ResultadoDijkstra;
+import br.com.graphquest.modelo.EventoExploracao;
+import br.com.graphquest.modelo.Item;
 import br.com.graphquest.modelo.Sala;
 import br.com.graphquest.modelo.TipoSala;
 
@@ -63,6 +67,11 @@ public class Jogo {
     private PerfilJogador perfil;
     private PerfilJogador.ResultadoMoedas recompensaMoedas;
     private Inimigo inimigoAtual;
+    private final Map<Habilidade, Integer> cooldowns = new EnumMap<>(Habilidade.class);
+    private boolean emGuarda;
+    private boolean esquivaAtiva;
+    private int danoSofriNesteCombate;
+    private int pocoesUsadasNestaFase;
     private final Set<Integer> armadilhasAcionadas = new HashSet<>();
     private final Set<Integer> salasComInimigoDerrotado = new HashSet<>();
     private final Map<Integer, Inimigo> inimigosDaFase = new HashMap<>();
@@ -75,6 +84,10 @@ public class Jogo {
     private int missoesOpcionaisCampanha;
     private int totalMissoesCampanha;
     private final int totalFases = 8;
+    private final List<Item> itensInventario = new ArrayList<>();
+    private Item armaEquipada;
+    private Item armaduraEquipada;
+    private Item acessorioEquipado;
 
     private final List<JogoListener> ouvintes;
 
@@ -270,6 +283,7 @@ public class Jogo {
         this.salaAtual = destino;
         this.salaAtual.setVisitada(true);
         this.quantidadeMovimentos++;
+        perfil.getConquistas().incrementarEstatistica("passos_dados", 1);
 
         adicionarMensagem("Você entrou em: " + destino.getNome() + ".");
 
@@ -289,19 +303,62 @@ public class Jogo {
     private void processarChegada(Sala destino) {
         if (destino.getId() == idArmadilhaDaFase() && armadilhasAcionadas.add(destino.getId())) {
             vida = Math.max(1, vida - (faseAtual == 1 ? 12 : faseAtual == 2 ? 16 : 20));
+            GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.DANO_JOGADOR);
             adicionarMensagem("ARMADILHA! Lâminas antigas causam dano. Você perdeu vida, mas escapou.");
             registrarFeedback("Armadilha: -" + (faseAtual == 1 ? 12 : faseAtual == 2 ? 16 : 20) + " de vida.");
         }
         Inimigo inimigo = salasComInimigoDerrotado.contains(destino.getId()) ? null : inimigosDaFase.get(destino.getId());
         if (inimigo != null && !inimigo.isDerrotado()) {
             inimigoAtual = inimigo;
+            danoSofriNesteCombate = 0;
+            emGuarda = false;
+            esquivaAtiva = false;
             adicionarMensagem("Combate iniciado: " + inimigo.getNome() + " protege esta câmara!");
-            registrarFeedback("Combate! Ataque, use uma poção ou lance uma bomba.");
+            registrarFeedback("Combate! Ataque, defenda, use habilidades ou consumíveis.");
             return;
         }
         coletarRecompensas(destino);
+        processarEventoDaSala(destino);
         atualizarMissoes();
         if (destino.equals(salaSaida)) concluirPortal();
+    }
+
+    private void processarEventoDaSala(Sala destino) {
+        if (destino.temEvento()) {
+            EventoExploracao ev = destino.getEvento();
+            switch (ev.getTipo()) {
+                case FONTE_CURA -> {
+                    int recuperada = Math.min(35, vidaMaxima - vida);
+                    vida += recuperada;
+                    ev.setResolvido(true);
+                    GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.CURA);
+                    adicionarMensagem(ev.getTitulo() + ": " + ev.getNarrativa() + " (+" + recuperada + " PV).");
+                    registrarFeedback("Fonte Sagrada: +" + recuperada + " PV restaurados.");
+                }
+                case BAU_MISTERIOSO -> {
+                    int moedasBau = 50 + faseAtual * 10;
+                    pontuacao += 60;
+                    perfil.adicionarMoedas(moedasBau);
+                    ev.setResolvido(true);
+                    GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.BAU);
+                    adicionarMensagem(ev.getTitulo() + ": Você destrancou o baú e encontrou " + moedasBau + " moedas!");
+                    registrarFeedback("Baú misterioso: +" + moedasBau + " moedas!");
+                }
+                case ALTAR_BENCAO -> {
+                    pontuacao += 80;
+                    perfil.adicionarMoedas(30);
+                    ev.setResolvido(true);
+                    GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.HABILIDADE);
+                    adicionarMensagem(ev.getTitulo() + ": As runas brilham ao seu toque. Bênção dos Ancestrais concedida (+80 pts)!");
+                    registrarFeedback("Bênção recebida: +80 pontos!");
+                }
+                case MERCADOR_ERRANTE -> {
+                    adicionarMensagem(ev.getTitulo() + ": " + ev.getNarrativa());
+                    registrarFeedback("Mercador Errante disponível para trocas.");
+                }
+                default -> {}
+            }
+        }
     }
 
     private void coletarRecompensas(Sala destino) {
@@ -311,28 +368,50 @@ public class Jogo {
             destino.setTesouroColetado(true);
             if (faseAtual == 1) { pocoes++; pocoesExtras++; }
             else { bombas++; bombasExtras++; }
+            perfil.adicionarMoedas(valor / 2);
+            perfil.getConquistas().incrementarEstatistica("baus_coletados", 1);
+            GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.BAU);
             adicionarMensagem("Baú aberto: +" + valor + " pontos e " + (faseAtual == 1 ? "uma poção" : "uma bomba arcana") + ".");
             registrarFeedback("Recompensa coletada: +" + valor + " pontos!");
         }
         if (destino.getItemConcedido() != null && inventario.add(destino.getItemConcedido())) {
+            GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.COMPRA);
             adicionarMensagem("Item obtido: [" + destino.getItemConcedido() + "].");
         }
         if (destino.getId() == salaEventoSurpresaId && !eventoSurpresaColetado) {
             eventoSurpresaColetado = true;
             segredosEncontrados++;
             pontuacao += 50;
+            perfil.adicionarMoedas(25);
+            GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.MOEDA);
             adicionarMensagem("Cristal secreto encontrado: +50 pontos!");
             registrarFeedback("Cristal secreto: +50 pontos!");
         }
     }
 
     private void concluirPortal() {
+        perfil.getConquistas().incrementarEstatistica("fases_concluidas", 1);
+        perfil.getConquistas().desbloquear(SistemaConquistas.Conquista.PRIMEIROS_PASSOS);
+        if (pocoesUsadasNestaFase == 0) {
+            perfil.getConquistas().desbloquear(SistemaConquistas.Conquista.SEM_POCOES);
+        }
+        long visitadasFase = mapaSalas.values().stream().filter(Sala::isVisitada).count();
+        long transitaveis = mapaSalas.values().stream().filter(s -> !s.isBloqueada()).count();
+        if (visitadasFase >= transitaveis) {
+            perfil.getConquistas().desbloquear(SistemaConquistas.Conquista.CARTOGRAFO);
+        }
+        if (getTesourosRestantes() == 0) {
+            perfil.getConquistas().desbloquear(SistemaConquistas.Conquista.CACADOR_DE_TESOUROS);
+        }
+
         if (faseAtual < totalFases) {
             missaoPrincipal.concluir();
             contabilizarFase();
             int faseAnterior = faseAtual;
             faseAtual++;
             vida = Math.min(vidaMaxima, vida + 30);
+            pocoesUsadasNestaFase = 0;
+            GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.PORTAO);
             adicionarMensagem("Portal ativado! Fase " + faseAnterior + " concluída. +30 de vida para a próxima etapa.");
             carregarFase(true);
             registrarFeedback("Fase " + faseAtual + "/" + totalFases + ": " + getNomeFase());
@@ -344,6 +423,9 @@ public class Jogo {
                 && !salasComInimigoDerrotado.contains(salaSaida.getId())) {
             if (inimigoAtual == null) {
                 inimigoAtual = chefePortal;
+                danoSofriNesteCombate = 0;
+                emGuarda = false;
+                esquivaAtiva = false;
                 adicionarMensagem(chefePortal.getNome() + " desperta e bloqueia o portal!");
             }
             registrarFeedback("Derrote " + chefePortal.getNome() + " para ativar o portal.");
@@ -351,6 +433,7 @@ public class Jogo {
         }
         if (chefePortal != null && chefePortal.isDerrotado()) salasComInimigoDerrotado.add(salaSaida.getId());
         missaoPrincipal.concluir();
+        perfil.getConquistas().desbloquear(SistemaConquistas.Conquista.SENHOR_DOS_GRAFOS);
         finalizarCampanha(true);
     }
 
@@ -489,11 +572,117 @@ public class Jogo {
 
     public void atacar() {
         if (inimigoAtual == null) { registrarFeedback("Não há inimigo nesta sala."); notificarOuvintes(); return; }
-        int dano = 28 + perfil.nivel(PerfilJogador.Melhoria.FORCA) * 4
-                + (perfil.possui(PerfilJogador.Equipamento.LAMINA) ? 8 : 0);
+        int dano = getAtaque();
+        boolean critico = new Random().nextInt(100) < 18;
+        if (critico) {
+            dano = (int) Math.round(dano * 1.5);
+            GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.CRITICO);
+            adicionarMensagem("⚡ ACERTO CRÍTICO! Você desfere um golpe potente em " + inimigoAtual.getNome() + " causando " + dano + " de dano!");
+        } else {
+            GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.ATAQUE);
+            adicionarMensagem("Você ataca " + inimigoAtual.getNome() + " e causa " + dano + " de dano.");
+        }
         inimigoAtual.receberDano(dano);
-        adicionarMensagem("Você ataca " + inimigoAtual.getNome() + " e causa " + dano + " de dano.");
         resolverTurnoCombate();
+    }
+
+    public void defender() {
+        if (inimigoAtual == null) { registrarFeedback("Não há inimigo nesta sala."); notificarOuvintes(); return; }
+        emGuarda = true;
+        GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.DEFESA);
+        adicionarMensagem("Você assume Postura Defensiva: reduzirá 60% do próximo dano e contra-atacará!");
+        registrarFeedback("Postura defensiva adotada.");
+        resolverTurnoCombate();
+    }
+
+    public void fugir() {
+        if (inimigoAtual == null) { registrarFeedback("Não há combate em andamento."); notificarOuvintes(); return; }
+        Sala recuo = null;
+        for (Sala vizinho : grafo.obterVizinhos(salaAtual)) {
+            if (vizinho.isVisitada() && !vizinho.isBloqueada() && (!inimigosDaFase.containsKey(vizinho.getId()) || salasComInimigoDerrotado.contains(vizinho.getId()))) {
+                recuo = vizinho;
+                break;
+            }
+        }
+        if (recuo == null) recuo = salaInicial;
+        inimigoAtual = null;
+        emGuarda = false;
+        esquivaAtiva = false;
+        salaAtual = recuo;
+        GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.CLIQUE);
+        adicionarMensagem("Você recuou taticamente para " + recuo.getNome() + ". O monstro permanece ferido na câmara.");
+        registrarFeedback("Recuo tático realizado!");
+        notificarOuvintes();
+    }
+
+    public void usarHabilidade(Habilidade hab) {
+        if (hab == null) return;
+        if (!perfil.possuiHabilidade(hab)) {
+            registrarFeedback("Habilidade não desbloqueada. Adquira-a na loja.");
+            notificarOuvintes();
+            return;
+        }
+        if (getCooldown(hab) > 0) {
+            registrarFeedback("Habilidade em recarga: aguarde " + getCooldown(hab) + " turno(s).");
+            notificarOuvintes();
+            return;
+        }
+
+        switch (hab) {
+            case GOLPE_DEVASTADOR -> {
+                if (inimigoAtual == null) {
+                    registrarFeedback("Esta habilidade requer um alvo em combate.");
+                    notificarOuvintes();
+                    return;
+                }
+                int danoBase = 28 + perfil.nivel(PerfilJogador.Melhoria.FORCA) * 4
+                        + (perfil.possui(PerfilJogador.Equipamento.LAMINA) ? 8 : 0);
+                int danoDevastador = (int) Math.round(danoBase * 1.7);
+                inimigoAtual.receberDano(danoDevastador);
+                cooldowns.put(hab, hab.getCooldownMaximo());
+                GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.HABILIDADE);
+                adicionarMensagem("GOLPE DEVASTADOR! Impacto titânico causa " + danoDevastador + " de dano!");
+                resolverTurnoCombate();
+            }
+            case ESCUDO_RUNICO -> {
+                emGuarda = true;
+                if (inimigoAtual != null) inimigoAtual.receberDano(15);
+                cooldowns.put(hab, hab.getCooldownMaximo());
+                GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.DEFESA);
+                adicionarMensagem("ESCUDO RÚNICO erguido! Barreira mágica ativa e 15 de reflexão arcana!");
+                if (inimigoAtual != null) resolverTurnoCombate(); else { registrarFeedback("Escudo rúnico pronto."); notificarOuvintes(); }
+            }
+            case CURA_ARCANA -> {
+                int recuperada = Math.min(35, vidaMaxima - vida);
+                vida += recuperada;
+                cooldowns.put(hab, hab.getCooldownMaximo());
+                GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.CURA);
+                adicionarMensagem("CURA ARCANA: +" + recuperada + " PV restaurados.");
+                if (inimigoAtual != null) resolverTurnoCombate(); else { registrarFeedback("Cura arcana: +" + recuperada + " PV."); notificarOuvintes(); }
+            }
+            case PASSO_ESPECTRAL -> {
+                esquivaAtiva = true;
+                cooldowns.put(hab, hab.getCooldownMaximo());
+                GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.HABILIDADE);
+                adicionarMensagem("PASSO ESPECTRAL! Você desvia para o éter (esquiva do próximo ataque).");
+                if (inimigoAtual != null) resolverTurnoCombate(); else { registrarFeedback("Passo espectral ativado."); notificarOuvintes(); }
+            }
+            case OLHAR_CARTOGRAFO -> {
+                cooldowns.put(hab, hab.getCooldownMaximo());
+                GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.HABILIDADE);
+                executarBFSAteSaida();
+                adicionarMensagem("OLHAR DO CARTÓGRAFO: Topologia do grafo revelada e menor rota calculada pela BFS!");
+                registrarFeedback("Mapa iluminado pelo cartógrafo!");
+            }
+        }
+    }
+
+    public int getCooldown(Habilidade hab) {
+        return cooldowns.getOrDefault(hab, 0);
+    }
+
+    public boolean podeUsarHabilidade(Habilidade hab) {
+        return perfil.possuiHabilidade(hab) && getCooldown(hab) == 0;
     }
 
     public void usarPocao() {
@@ -501,8 +690,11 @@ public class Jogo {
         if (vida >= vidaMaxima) { registrarFeedback("Sua vida já está completa."); notificarOuvintes(); return; }
         pocoes--;
         if (pocoesExtras > 0) pocoesExtras--;
+        pocoesUsadasNestaFase++;
+        perfil.getConquistas().incrementarEstatistica("pocoes_usadas", 1);
         int recuperada = Math.min(40, vidaMaxima - vida);
         vida += recuperada;
+        GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.CURA);
         adicionarMensagem("Poção usada: +" + recuperada + " de vida.");
         if (inimigoAtual != null) resolverTurnoCombate(); else { registrarFeedback("Poção usada: +" + recuperada + " de vida."); notificarOuvintes(); }
     }
@@ -512,19 +704,68 @@ public class Jogo {
         if (inimigoAtual == null) { registrarFeedback("Bombas só podem ser usadas durante um combate."); notificarOuvintes(); return; }
         bombas--;
         if (bombasExtras > 0) bombasExtras--;
+        perfil.getConquistas().incrementarEstatistica("bombas_usadas", 1);
+        GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.CRITICO);
         inimigoAtual.receberDano(50);
         adicionarMensagem("Bomba arcana: 50 de dano contra " + inimigoAtual.getNome() + ".");
         resolverTurnoCombate();
     }
 
+    public boolean comprarItemMercador(Item item) {
+        if (item == null || perfil.moedas() < item.getPreco()) {
+            registrarFeedback("Moedas insuficientes para comprar " + (item != null ? item.getNome() : "") + ".");
+            return false;
+        }
+        if (item.getId().equals("pocao_cura")) {
+            if (perfil.comprarPocao()) {
+                pocoes++;
+                pocoesExtras++;
+                GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.COMPRA);
+                adicionarMensagem("Mercador: Poção de Cura adquirida!");
+                registrarFeedback("Poção de cura comprada!");
+                notificarOuvintes();
+                return true;
+            }
+        } else if (item.getId().equals("bomba_arcana")) {
+            if (perfil.comprarBomba()) {
+                bombas++;
+                bombasExtras++;
+                GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.COMPRA);
+                adicionarMensagem("Mercador: Bomba Arcana adquirida!");
+                registrarFeedback("Bomba arcana comprada!");
+                notificarOuvintes();
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void resolverTurnoCombate() {
+        // Reduz recarga das habilidades
+        for (Habilidade h : Habilidade.values()) {
+            int cd = cooldowns.getOrDefault(h, 0);
+            if (cd > 0) cooldowns.put(h, cd - 1);
+        }
+
         if (inimigoAtual != null && inimigoAtual.isDerrotado()) {
             Inimigo derrotado = inimigoAtual;
             int salaDerrotada = salaAtual.getId();
             salasComInimigoDerrotado.add(salaDerrotada);
             pontuacao += derrotado.isChefe() ? 300 : 80;
+            perfil.adicionarMoedas(derrotado.isChefe() ? 75 : 20);
+            perfil.getConquistas().incrementarEstatistica("inimigos_derrotados", 1);
+            if (derrotado.isChefe()) {
+                perfil.getConquistas().incrementarEstatistica("chefes_derrotados", 1);
+                perfil.getConquistas().desbloquear(SistemaConquistas.Conquista.MATADOR_DE_CHEFES);
+            }
+            if (danoSofriNesteCombate == 0) {
+                perfil.getConquistas().desbloquear(SistemaConquistas.Conquista.IMPECAVEL);
+            }
+            GerenciadorAudio.getInstancia().tocar(derrotado.isChefe() ? EfeitoSonoro.VITORIA : EfeitoSonoro.ATAQUE);
             adicionarMensagem(derrotado.getNome() + " foi derrotado! +" + (derrotado.isChefe() ? 300 : 80) + " pontos.");
             inimigoAtual = null;
+            emGuarda = false;
+            esquivaAtiva = false;
             if (derrotado.isChefe()) {
                 chefesDerrotados++;
                 coletarRecompensas(salaAtual);
@@ -536,25 +777,42 @@ public class Jogo {
             }
         } else {
             if (inimigoAtual != null) {
-                int danoRecebido = Math.max(1, inimigoAtual.getDano() - perfil.nivel(PerfilJogador.Melhoria.RESISTENCIA) * 2
-                        - (perfil.possui(PerfilJogador.Equipamento.ARMADURA) ? 5 : 0));
-                vida -= danoRecebido;
-                adicionarMensagem(inimigoAtual.getNome() + " revida e causa " + danoRecebido + " de dano.");
-                if (vida <= 0) {
-                    if (recuosRestantes <= 0) {
-                        finalizarCampanha(false);
-                        notificarOuvintes();
-                        return;
+                if (esquivaAtiva) {
+                    esquivaAtiva = false;
+                    GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.HABILIDADE);
+                    adicionarMensagem("ESQUIVA! O ataque de " + inimigoAtual.getNome() + " passou direto pelo seu rastro espectral!");
+                    registrarFeedback("Esquiva com sucesso!");
+                } else {
+                    int danoRecebido = Math.max(1, inimigoAtual.getDano() - perfil.nivel(PerfilJogador.Melhoria.RESISTENCIA) * 2
+                            - (perfil.possui(PerfilJogador.Equipamento.ARMADURA) ? 5 : 0));
+                    if (emGuarda) {
+                        danoRecebido = Math.max(1, (int) Math.round(danoRecebido * 0.4));
+                        inimigoAtual.receberDano(12);
+                        adicionarMensagem("Postura Defensiva: dano reduzido para " + danoRecebido + " e você contra-atacou causando 12 de dano!");
+                        emGuarda = false;
                     }
-                    recuosRestantes--;
-                    int perda = Math.min(100, pontuacao);
-                    pontuacao -= perda;
-                    vida = 55;
-                    inimigoAtual.receberDano(12);
-                    inimigoAtual = null;
-                    salaAtual = salaInicial;
-                    salaAtual.setVisitada(true);
-                    adicionarMensagem("Você recuou para a entrada, recuperou-se com 55 de vida e perdeu " + perda + " pontos. O inimigo também ficou ferido.");
+                    danoSofriNesteCombate += danoRecebido;
+                    vida -= danoRecebido;
+                    GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.DANO_JOGADOR);
+                    adicionarMensagem(inimigoAtual.getNome() + " revida e causa " + danoRecebido + " de dano.");
+                    if (vida <= 0) {
+                        if (recuosRestantes <= 0) {
+                            finalizarCampanha(false);
+                            notificarOuvintes();
+                            return;
+                        }
+                        recuosRestantes--;
+                        int perda = Math.min(100, pontuacao);
+                        pontuacao -= perda;
+                        vida = 55;
+                        inimigoAtual.receberDano(12);
+                        inimigoAtual = null;
+                        emGuarda = false;
+                        esquivaAtiva = false;
+                        salaAtual = salaInicial;
+                        salaAtual.setVisitada(true);
+                        adicionarMensagem("Você recuou para a entrada, recuperou-se com 55 de vida e perdeu " + perda + " pontos. O inimigo também ficou ferido.");
+                    }
                 }
                 if (inimigoAtual != null) {
                     registrarFeedback("Combate: " + inimigoAtual.getNome() + " — " + inimigoAtual.getVida() + "/" + inimigoAtual.getVidaMaxima() + " PV.");
@@ -609,9 +867,12 @@ public class Jogo {
      */
     public ResultadoBFS executarBFSAteSaida() {
         this.rotaDijkstra = false;
+        perfil.getConquistas().incrementarEstatistica("buscas_bfs", 1);
         this.ultimoResultadoBFS = grafo.buscarMenorCaminho(salaAtual, salaSaida, inventario);
         if (ultimoResultadoBFS.isSucesso()) {
             this.rotaDestacada = ultimoResultadoBFS.getCaminho();
+            perfil.getConquistas().desbloquear(SistemaConquistas.Conquista.MESTRE_BFS);
+            GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.HABILIDADE);
             adicionarMensagem("BFS calculada: Menor rota até a saída possui " +
                     ultimoResultadoBFS.getQuantidadeArestas() + " arestas.");
             registrarFeedback("BFS encontrou uma rota com " + ultimoResultadoBFS.getQuantidadeArestas() + " passagens.");
@@ -639,9 +900,14 @@ public class Jogo {
     /** Calcula e destaca a rota de menor custo total usando Dijkstra. */
     public ResultadoDijkstra executarDijkstraAteSaida() {
         this.rotaDijkstra = true;
+        perfil.getConquistas().incrementarEstatistica("buscas_dijkstra", 1);
         this.ultimoResultadoDijkstra = grafo.buscarMenorCusto(salaAtual, salaSaida, inventario);
         this.rotaDestacada = ultimoResultadoDijkstra.isSucesso()
                 ? ultimoResultadoDijkstra.getCaminho() : Collections.emptyList();
+        if (ultimoResultadoDijkstra.isSucesso()) {
+            perfil.getConquistas().desbloquear(SistemaConquistas.Conquista.ESTRATEGISTA_DIJKSTRA);
+            GerenciadorAudio.getInstancia().tocar(EfeitoSonoro.HABILIDADE);
+        }
         adicionarMensagem("Dijkstra: " + ultimoResultadoDijkstra.getMensagem());
         registrarFeedback(ultimoResultadoDijkstra.isSucesso()
                 ? "Dijkstra encontrou a rota de menor custo."
@@ -785,5 +1051,122 @@ public class Jogo {
     private void registrarFeedback(String mensagem) {
         mensagemFeedback = mensagem;
         instanteFeedback = System.currentTimeMillis();
+    }
+
+    // ========== MÉTODOS DE ATRIBUTOS E EQUIPAMENTO (Fase E — UI) ==========
+
+    /** Retorna o dano base do ataque do herói, incluindo bônus de perfil e equipamentos. */
+    public int getAtaque() {
+        int base = 28 + perfil.nivel(PerfilJogador.Melhoria.FORCA) * 4
+                + (perfil.possui(PerfilJogador.Equipamento.LAMINA) ? 8 : 0);
+        if (armaEquipada != null) base += armaEquipada.getBonusAtaque();
+        return base;
+    }
+
+    /** Retorna a defesa total do herói. */
+    public int getDefesa() {
+        int base = perfil.nivel(PerfilJogador.Melhoria.RESISTENCIA) * 2
+                + (perfil.possui(PerfilJogador.Equipamento.ARMADURA) ? 5 : 0);
+        if (armaduraEquipada != null) base += armaduraEquipada.getBonusDefesa();
+        if (acessorioEquipado != null) base += acessorioEquipado.getBonusDefesa();
+        return base;
+    }
+
+    /** Retorna o saldo de moedas atual do perfil. */
+    public int getMoedas() { return perfil.moedas(); }
+
+    /** Retorna se o herói está em postura defensiva no turno atual. */
+    public boolean isDefendendo() { return emGuarda; }
+
+    /** Retorna a lista de habilidades desbloqueadas pelo jogador. */
+    public Set<Habilidade> getHabilidadesDesbloqueadas() { return perfil.getHabilidades(); }
+
+    /** Retorna a recarga restante de uma habilidade em turnos. */
+    public int getRecargaRestanteHabilidade(Habilidade hab) { return getCooldown(hab); }
+
+    /** Desbloqueia uma habilidade usando moedas do perfil. */
+    public boolean desbloquearHabilidade(Habilidade hab) {
+        if (hab == null) return false;
+        boolean ok = perfil.comprarHabilidade(hab);
+        if (ok) {
+            adicionarMensagem("Habilidade desbloqueada: " + hab.getNome() + "!");
+            notificarOuvintes();
+        }
+        return ok;
+    }
+
+    // ========== INVENTÁRIO DE ITENS (Fase E) ==========
+
+    /** Retorna a lista de itens no inventário do herói. */
+    public List<Item> getItensInventario() { return Collections.unmodifiableList(itensInventario); }
+
+    public Item getArmaEquipada() { return armaEquipada; }
+    public Item getArmaduraEquipada() { return armaduraEquipada; }
+    public Item getAcessorioEquipado() { return acessorioEquipado; }
+
+    /** Equipa um item do inventário no slot correspondente ao seu tipo. */
+    public void equiparItem(Item item) {
+        if (item == null || !item.getTipo().isEquipavel()) return;
+        if (!itensInventario.contains(item)) return;
+
+        switch (item.getTipo()) {
+            case ARMA -> {
+                if (armaEquipada != null) armaEquipada.setEquipado(false);
+                armaEquipada = item;
+            }
+            case ARMADURA -> {
+                if (armaduraEquipada != null) armaduraEquipada.setEquipado(false);
+                armaduraEquipada = item;
+                vidaMaxima = 100 + 15 * perfil.nivel(PerfilJogador.Melhoria.VITALIDADE) + item.getBonusVida();
+            }
+            case ACESSORIO -> {
+                if (acessorioEquipado != null) acessorioEquipado.setEquipado(false);
+                acessorioEquipado = item;
+                vidaMaxima = 100 + 15 * perfil.nivel(PerfilJogador.Melhoria.VITALIDADE) + item.getBonusVida();
+            }
+            default -> { return; }
+        }
+        item.setEquipado(true);
+        adicionarMensagem("Equipou: " + item.getNome());
+        notificarOuvintes();
+    }
+
+    /** Remove um item equipado do slot correspondente. */
+    public void desequiparItem(Item item) {
+        if (item == null) return;
+        if (item == armaEquipada) { armaEquipada = null; }
+        else if (item == armaduraEquipada) { armaduraEquipada = null; }
+        else if (item == acessorioEquipado) { acessorioEquipado = null; }
+        item.setEquipado(false);
+        vidaMaxima = 100 + 15 * perfil.nivel(PerfilJogador.Melhoria.VITALIDADE)
+                + (armaduraEquipada != null ? armaduraEquipada.getBonusVida() : 0)
+                + (acessorioEquipado != null ? acessorioEquipado.getBonusVida() : 0);
+        if (vida > vidaMaxima) vida = vidaMaxima;
+        adicionarMensagem("Desequipou: " + item.getNome());
+        notificarOuvintes();
+    }
+
+    /** Usa um item consumível do inventário. Retorna true se foi utilizado. */
+    public boolean usarItem(Item item) {
+        if (item == null || !itensInventario.contains(item)) return false;
+        if (item.getTipo() != br.com.graphquest.modelo.TipoItem.CONSUMIVEL) return false;
+        if (item.getCura() > 0 && vida >= vidaMaxima) return false;
+
+        if (item.getCura() > 0) {
+            int recuperada = Math.min(item.getCura(), vidaMaxima - vida);
+            vida += recuperada;
+            adicionarMensagem("Usou " + item.getNome() + ": +" + recuperada + " PV.");
+        }
+        itensInventario.remove(item);
+        notificarOuvintes();
+        return true;
+    }
+
+    /** Adiciona um item ao inventário do herói. */
+    public void adicionarItem(Item item) {
+        if (item != null) {
+            itensInventario.add(item);
+            notificarOuvintes();
+        }
     }
 }

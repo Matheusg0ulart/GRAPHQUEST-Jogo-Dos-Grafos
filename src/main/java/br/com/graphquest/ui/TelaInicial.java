@@ -169,7 +169,18 @@ public class TelaInicial extends JFrame {
         cardBotoes.add(Box.createVerticalStrut(12));
         JButton btnLoja = TemaVisual.criarBotao("✦  Loja e melhorias", new Color(94, 61, 27), new Color(130, 88, 35));
         JButton btnPerfil = TemaVisual.criarBotao("📜  Inventário e perfil", new Color(55, 48, 78), new Color(78, 65, 108));
-        for (JButton botao : new JButton[]{btnLoja, btnPerfil}) {
+        JButton btnConquistas = TemaVisual.criarBotao("🏆  Conquistas e Estatísticas", new Color(30, 64, 110), new Color(40, 85, 145));
+        JButton btnSom = TemaVisual.criarBotao(
+                br.com.graphquest.audio.GerenciadorAudio.isAudioAtivado() ? "🔊  Som: Ativado" : "🔇  Som: Mudo",
+                new Color(45, 55, 72), new Color(60, 75, 95)
+        );
+        btnSom.addActionListener(e -> {
+            boolean ativo = br.com.graphquest.audio.GerenciadorAudio.alternarAudio();
+            btnSom.setText(ativo ? "🔊  Som: Ativado" : "🔇  Som: Mudo");
+        });
+        btnConquistas.addActionListener(e -> new DialogoConquistas(this).setVisible(true));
+
+        for (JButton botao : new JButton[]{btnLoja, btnPerfil, btnConquistas, btnSom}) {
             botao.setFont(TemaVisual.FONTE_SECAO); botao.setPreferredSize(new Dimension(280, 40));
             botao.setMaximumSize(new Dimension(280, 40)); botao.setAlignmentX(Component.CENTER_ALIGNMENT);
             cardBotoes.add(botao); cardBotoes.add(Box.createVerticalStrut(12));

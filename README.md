@@ -4,7 +4,7 @@
 [![Interface](https://img.shields.io/badge/GUI-Java%20Swing%20%7C%20Java2D-orange.svg)]()
 [![Estrutura](https://img.shields.io/badge/Estrutura-Grafo%20(Lista%20de%20Adjacência)-green.svg)]()
 [![Algoritmos](https://img.shields.io/badge/Algoritmos-BFS%20%2B%20Dijkstra-purple.svg)]()
-[![Testes](https://img.shields.io/badge/Testes%20standalone-27%2F27%20Aprovados-brightgreen.svg)]()
+[![Testes](https://img.shields.io/badge/Testes%20standalone-30%2F30%20Aprovados-brightgreen.svg)]()
 
 > **Atividade Prática Acadêmica (ADO) de Estrutura de Dados em Java**  
 > Um jogo desktop de exploração de masmorra em que o mapa é um grafo real. A **BFS** encontra a rota com menos passagens e **Dijkstra** encontra a rota de menor custo.

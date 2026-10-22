@@ -48,6 +48,8 @@ public final class PerfilJogador {
         public int getPreco() { return preco; }
     }
 
+    private final SistemaConquistas conquistas = new SistemaConquistas();
+    private final Set<Habilidade> habilidades = new LinkedHashSet<>();
     private final Path arquivo;
     private final EnumMap<Melhoria, Integer> melhorias = new EnumMap<>(Melhoria.class);
     private final Set<Equipamento> equipamentos = new LinkedHashSet<>();
@@ -64,6 +66,7 @@ public final class PerfilJogador {
     public PerfilJogador(Path arquivo) {
         this.arquivo = arquivo.toAbsolutePath().normalize();
         for (Melhoria m : Melhoria.values()) melhorias.put(m, 0);
+        this.habilidades.add(Habilidade.GOLPE_DEVASTADOR);
         carregar();
     }
 
@@ -86,6 +89,9 @@ public final class PerfilJogador {
             for (Melhoria m : Melhoria.values()) melhorias.put(m,
                     Math.max(0, Math.min(m.nivelMaximo, numero(p, "melhoria." + m.name(), 0))));
             for (Equipamento e : Equipamento.values()) if (Boolean.parseBoolean(p.getProperty("equip." + e.name(), "false"))) equipamentos.add(e);
+            for (Habilidade h : Habilidade.values()) if (Boolean.parseBoolean(p.getProperty("hab." + h.name(), "false"))) habilidades.add(h);
+            habilidades.add(Habilidade.GOLPE_DEVASTADOR);
+            conquistas.carregarDados(p.getProperty("conquistas.desbloqueadas", ""), p);
             for (String id : p.getProperty("campanhas.resgatadas", "").split(",")) if (!id.isBlank()) campanhasRecompensadas.add(id);
             int quantidade = Math.max(0, Math.min(500, numero(p, "historico.quantidade", 0)));
             for (int i = 0; i < quantidade; i++) {
@@ -111,6 +117,8 @@ public final class PerfilJogador {
         p.setProperty("derrotas", String.valueOf(campanhasPerdidas));
         for (Melhoria m : Melhoria.values()) p.setProperty("melhoria." + m.name(), String.valueOf(nivel(m)));
         for (Equipamento e : Equipamento.values()) p.setProperty("equip." + e.name(), String.valueOf(equipamentos.contains(e)));
+        for (Habilidade h : Habilidade.values()) p.setProperty("hab." + h.name(), String.valueOf(habilidades.contains(h)));
+        conquistas.salvarDados(p);
         p.setProperty("campanhas.resgatadas", String.join(",", campanhasRecompensadas));
         p.setProperty("historico.quantidade", String.valueOf(historico.size()));
         for (int i = 0; i < historico.size(); i++) p.setProperty("historico." + i,
@@ -157,10 +165,15 @@ public final class PerfilJogador {
         return true;
     }
 
-    private boolean debitar(int valor) {
+    public synchronized boolean debitar(int valor) {
         if (moedas < valor) return false;
         moedas -= valor;
+        salvar();
         return true;
+    }
+
+    public synchronized boolean gastarMoedas(int valor) {
+        return debitar(valor);
     }
 
     private void registrarCompra(String item, int valor) {
@@ -211,6 +224,28 @@ public final class PerfilJogador {
 
     public synchronized void consumirPocaoGuardada() { if (pocoesGuardadas > 0) { pocoesGuardadas--; salvar(); } }
     public synchronized void consumirBombaGuardada() { if (bombasGuardadas > 0) { bombasGuardadas--; salvar(); } }
+
+    public synchronized SistemaConquistas getConquistas() { return conquistas; }
+    public synchronized Set<Habilidade> getHabilidades() { return Set.copyOf(habilidades); }
+    public synchronized boolean possuiHabilidade(Habilidade hab) { return habilidades.contains(hab); }
+
+    public synchronized boolean comprarHabilidade(Habilidade hab) {
+        if (habilidades.contains(hab) || !debitar(hab.getCustoDesbloqueio())) return false;
+        habilidades.add(hab);
+        registrarCompra("Habilidade: " + hab.getNome(), hab.getCustoDesbloqueio());
+        return true;
+    }
+
+    public synchronized void adicionarMoedas(int quantidade) {
+        if (quantidade > 0) {
+            moedas += quantidade;
+            conquistas.incrementarEstatistica("moedas_acumuladas", quantidade);
+            if (moedas >= 250) {
+                conquistas.desbloquear(SistemaConquistas.Conquista.BOLSA_CHEIA);
+            }
+            salvar();
+        }
+    }
 
     public synchronized int moedas() { return moedas; }
     public synchronized int nivel(Melhoria melhoria) { return melhorias.getOrDefault(melhoria, 0); }

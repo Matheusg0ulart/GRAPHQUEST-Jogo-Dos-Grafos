@@ -14,31 +14,35 @@ import java.util.*;
  * Gera mapas na forma de Grafos Conexos, Não-Direcionados e Ponderados,
  * garantindo:
  * 1. Existência comprovada por BFS de rota viável entre a Entrada e o Portal.
- * 2. Diversidade de topologia (ramificações, ciclos, atalhos e câmaras secretas).
- * 3. Posicionamento balanceado de salas especiais (tesouros, descanso, mercadores, portões com chaves acessíveis).
+ * 2. Diversidade de topologia (ramificações, ciclos, atalhos e câmaras
+ * secretas).
+ * 3. Posicionamento balanceado de salas especiais (tesouros, descanso,
+ * mercadores, portões com chaves acessíveis).
  * 4. Ponderação de arestas para diferenciação didática entre BFS e Dijkstra.
- * 5. Instanciação única de vértices, respeitando a identidade estrita de nós do Grafo.
+ * 5. Instanciação única de vértices, respeitando a identidade estrita de nós do
+ * Grafo.
  * 6. Reprodutibilidade estrita através de sementes (seeds).
  */
 public class GeradorMasmorraProcedural {
 
     private static final String[][] NOMES_POR_BIOMA = {
             // Fase 1: Catacumbas de Pedra
-            {"Cripta Antiga", "Corredor dos Ossos", "Galeria Sepulcral", "Câmara dos Murmúrios", "Catacumba Rúnica"},
+            { "Cripta Antiga", "Corredor dos Ossos", "Galeria Sepulcral", "Câmara dos Murmúrios", "Catacumba Rúnica" },
             // Fase 2: Galerias Rubras
-            {"Salão Carmesim", "Câmara Escarlate", "Galeria de Sangue", "Passagem de Rubis", "Abóbada Rubra"},
+            { "Salão Carmesim", "Câmara Escarlate", "Galeria de Sangue", "Passagem de Rubis", "Abóbada Rubra" },
             // Fase 3: Bosque das Almas
-            {"Clareira Espectral", "Bosque das Brumas", "Trilha das Almas", "Bosque Encantado", "Antro Silencioso"},
+            { "Clareira Espectral", "Bosque das Brumas", "Trilha das Almas", "Bosque Encantado", "Antro Silencioso" },
             // Fase 4: Fortaleza Espectral
-            {"Pátio dos Guardiões", "Torre das Sombras", "Baluarte Sombrio", "Muralha do Abismo", "Arsenal Fantasma"},
+            { "Pátio dos Guardiões", "Torre das Sombras", "Baluarte Sombrio", "Muralha do Abismo", "Arsenal Fantasma" },
             // Fase 5: Abismo Congelado
-            {"Geleira Perfurada", "Caverna de Gelo", "Fenda Gelada", "Santuário Cristalino", "Túnel do Vento"},
+            { "Geleira Perfurada", "Caverna de Gelo", "Fenda Gelada", "Santuário Cristalino", "Túnel do Vento" },
             // Fase 6: Cidadela das Cinzas
-            {"Fornalha Arcaica", "Ponte de Magma", "Passagem de Brasas", "Câmara de Obsidiana", "Fosso Vulcânico"},
+            { "Fornalha Arcaica", "Ponte de Magma", "Passagem de Brasas", "Câmara de Obsidiana", "Fosso Vulcânico" },
             // Fase 7: Templo Celeste
-            {"Átrio Rúnico", "Santuário das Nuvens", "Colunata Dourada", "Torre Celestial", "Cúpula Astral"},
+            { "Átrio Rúnico", "Santuário das Nuvens", "Colunata Dourada", "Torre Celestial", "Cúpula Astral" },
             // Fase 8: Santuário Astral
-            {"Câmara do Vórtice", "Passagem do Infinito", "Salão das Constelações", "Altar Cósmico", "Vértice do Caos"}
+            { "Câmara do Vórtice", "Passagem do Infinito", "Salão das Constelações", "Altar Cósmico",
+                    "Vértice do Caos" }
     };
 
     /**
@@ -58,9 +62,9 @@ public class GeradorMasmorraProcedural {
                 TipoSala.TESOURO, TipoSala.ESPECIAL, TipoSala.DESCANSO
         };
 
-        int colunas = Math.max(4, (int) Math.ceil(Math.sqrt(quantidadeSalas * 1.6)));
-        int espacamentoX = Math.max(70, 720 / (colunas + 1));
-        int espacamentoY = 85;
+        int colunas = Math.max(4, (int) Math.round(Math.sqrt(quantidadeSalas * 1.15)));
+        int espacamentoX = 160;
+        int espacamentoY = 140;
 
         for (int id = 1; id <= quantidadeSalas; id++) {
             int col = (id - 1) % colunas;
@@ -68,8 +72,8 @@ public class GeradorMasmorraProcedural {
             int visualCol = (lin % 2 == 0) ? col : (colunas - 1 - col);
             int jitterX = (random.nextInt(15) - 7);
             int jitterY = (random.nextInt(15) - 7);
-            int x = 70 + visualCol * espacamentoX + jitterX;
-            int y = 75 + lin * espacamentoY + jitterY;
+            int x = 90 + visualCol * espacamentoX + jitterX;
+            int y = 90 + lin * espacamentoY + jitterY;
 
             TipoSala tipo;
             String nome;
@@ -83,11 +87,12 @@ public class GeradorMasmorraProcedural {
                 desc = "Ponto de partida seguro. Corredores antigos se abrem à sua frente.";
             } else if (id == quantidadeSalas) {
                 tipo = (fase == 8 || fase == 4) ? TipoSala.CHEFE : TipoSala.SAIDA;
-                nome = (fase == 8) ? "Trono do Dragão (Portal)" : (fase == 4) ? "Aposento do Arauto (Portal)" : "Portal da Fase " + fase;
+                nome = (fase == 8) ? "Trono do Dragão (Portal)"
+                        : (fase == 4) ? "Aposento do Arauto (Portal)" : "Portal da Fase " + fase;
                 desc = "O objetivo final desta região. Ative o portal para avançar.";
             } else {
                 tipo = tipos[random.nextInt(tipos.length)];
-                nome = nomesBioma[random.nextInt(nomesBioma.length)] + " " + id;
+                nome = nomesBioma[random.nextInt(nomesBioma.length)];
                 desc = "Uma câmara ancestral conectada pelas passagens do grafo.";
 
                 if (tipo == TipoSala.TESOURO) {
@@ -102,7 +107,8 @@ public class GeradorMasmorraProcedural {
             }
 
             Sala sala = new Sala(id, nome, desc, tipo, x, y, ouro, false, false, null, null, null);
-            if (evento != null) sala.setEvento(evento);
+            if (evento != null)
+                sala.setEvento(evento);
             mapaSalas.put(id, sala);
             grafo.adicionarVertice(sala);
         }
@@ -112,7 +118,8 @@ public class GeradorMasmorraProcedural {
             grafo.adicionarAresta(mapaSalas.get(id), mapaSalas.get(id + 1), 1 + random.nextInt(5));
         }
 
-        // Arestas extras cruzadas (Criando ciclos fechados, caminhos alternativos e atalhos no Grafo)
+        // Arestas extras cruzadas (Criando ciclos fechados, caminhos alternativos e
+        // atalhos no Grafo)
         int extras = quantidadeSalas + quantidadeSalas / 2;
         for (int i = 0; i < extras; i++) {
             int a = 1 + random.nextInt(quantidadeSalas);

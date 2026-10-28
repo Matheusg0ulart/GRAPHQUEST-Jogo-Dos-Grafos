@@ -163,19 +163,43 @@ public class PainelMapa extends JPanel {
     }
 
     private void calcularTransformacaoMapa(int largura, int altura) {
-        int maxX = 750, maxY = 440;
+        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+        int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
+
         for (Sala sala : jogo.getMapaSalas().values()) {
-            maxX = Math.max(maxX, sala.getX() + 45);
-            maxY = Math.max(maxY, sala.getY() + 45);
+            minX = Math.min(minX, sala.getX());
+            maxX = Math.max(maxX, sala.getX());
+            minY = Math.min(minY, sala.getY());
+            maxY = Math.max(maxY, sala.getY());
         }
-        MAPA_LARGURA = maxX;
-        MAPA_ALTURA = maxY;
+
+        if (minX > maxX) {
+            minX = 70; maxX = 750;
+            minY = 70; maxY = 440;
+        }
+
+        int margemX = 75;
+        int margemY = 48;
+
+        double mapaMinX = minX - margemX;
+        double mapaMaxX = maxX + margemX;
+        double mapaMinY = minY - margemY;
+        double mapaMaxY = maxY + margemY;
+
+        MAPA_LARGURA = Math.max(100, mapaMaxX - mapaMinX);
+        MAPA_ALTURA = Math.max(100, mapaMaxY - mapaMinY);
+
+        double areaMapaAltura = Math.max(100, altura - 54);
         double escalaX = Math.max(1, largura - 36) / MAPA_LARGURA;
-        double escalaY = Math.max(1, altura - 92) / MAPA_ALTURA;
+        double escalaY = Math.max(1, areaMapaAltura - 36) / MAPA_ALTURA;
+
         escalaMapa = Math.max(0.45, Math.min(1.25, Math.min(escalaX, escalaY)));
-        deslocamentoX = (largura - MAPA_LARGURA * escalaMapa) / 2.0 - MAPA_MIN_X * escalaMapa;
-        double areaMapaAltura = altura - 54;
-        deslocamentoY = (areaMapaAltura - MAPA_ALTURA * escalaMapa) / 2.0 - MAPA_MIN_Y * escalaMapa;
+
+        double centroGrafoX = (mapaMinX + mapaMaxX) / 2.0;
+        double centroGrafoY = (mapaMinY + mapaMaxY) / 2.0;
+
+        deslocamentoX = (largura / 2.0) - (centroGrafoX * escalaMapa);
+        deslocamentoY = (areaMapaAltura / 2.0) - (centroGrafoY * escalaMapa);
     }
 
     private void desenharFeedback(Graphics2D g2, int largura) {
